@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spin the Wheel</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#12151c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wheel">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--text:#1d2433;--muted:#6b7488;--line:#d9deea;--accent:#2f6bff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--card:#1b2030;--text:#eef1f8;--muted:#94a0b8;--line:#2d3550;--accent:#5b8cff}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+h1{text-align:center;margin:20px 0 4px;font-size:1.6rem;user-select:none}
+.sub{text-align:center;color:var(--muted);margin:0 0 12px;font-size:.9rem}
+.wrap{max-width:980px;margin:0 auto;padding:12px;display:flex;flex-wrap:wrap;gap:20px;justify-content:center;align-items:flex-start}
+.stage{position:relative;width:min(92vw,520px);aspect-ratio:1}
+canvas{width:100%;height:100%;display:block;cursor:pointer}
+.pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:16px solid transparent;border-right:16px solid transparent;border-top:34px solid #e11d48;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35));z-index:2}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;width:min(92vw,320px)}
+textarea{width:100%;height:240px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--bg);color:var(--text);font:inherit}
+label{font-size:.85rem;color:var(--muted);display:block;margin-bottom:6px}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:10px 16px;background:var(--accent);color:#fff;font-weight:600}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+.row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+#secret{display:none;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)}
+#secret.on{display:block}
+.qi{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:.9rem}
+.qi button{padding:2px 10px}
+#queue{margin-top:10px;font-size:.85rem;color:var(--muted)}
+select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
+.chk{display:flex;gap:8px;align-items:center;margin-top:10px;color:var(--text);font-size:.9rem}
+#dot{position:fixed;right:6px;bottom:calc(6px + env(safe-area-inset-bottom,0px));width:14px;height:14px;border-radius:50%;opacity:.06;background:var(--text);padding:0}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:10}
+#modal.on{display:flex}
+.box{background:var(--card);border-radius:18px;padding:28px;text-align:center;min-width:260px;max-width:90vw}
+.box .t{color:var(--muted);font-size:.9rem}
+.box .w{font-size:2rem;font-weight:800;margin:10px 0 18px;word-break:break-word}
+body{-webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+textarea{-webkit-user-select:text;user-select:text}
+</style>
+</head>
+<body>
+<h1 id="title">Spin the Wheel</h1>
+<p class="sub">Klik op het wiel of op Draaien</p>
+<div class="wrap">
+  <div class="stage">
+    <div class="pointer"></div>
+    <canvas id="c" width="1040" height="1040"></canvas>
+  </div>
+  <div class="panel">
+    <label for="items">Opties (één per regel)</label>
+    <textarea id="items">Anna
+Bram
+Charlotte
+Daan
+Emma
+Finn
+Sophie
+Lars</textarea>
+    <div class="row">
+      <button id="spin">Draaien</button>
+      <button class="ghost" id="shuffle">Schudden</button>
+    </div>
+    <div id="secret">
+      <label for="pick">Geheime volgorde van uitslagen</label>
+      <select id="pick"></select>
+      <div class="row"><button id="add">Toevoegen aan volgorde</button><button class="ghost" id="clr">Wissen</button></div>
+      <div id="queue"></div>
+      <div class="chk"><input type="checkbox" id="force" checked><span>Volgorde gebruiken</span></div>
+    </div>
+  </div>
+</div>
+<button id="dot" aria-label="Instellingen"></button>
+<div id="modal"><div class="box"><div class="t">De winnaar is…</div><div class="w" id="win"></div>
+<div class="row" style="justify-content:center"><button id="rm" class="ghost">Verwijderen</button><button id="close">Sluiten</button></div></div></div>
+<script>
+const COLORS=["#3369e8","#d50f25","#eeb211","#009925","#8e44ad","#e67e22","#16a0a8","#e84393"];
+const cv=document.getElementById("c"),ctx=cv.getContext("2d"),ta=document.getElementById("items");
+const pick=document.getElementById("pick"),force=document.getElementById("force");
+let theta=0,spinning=false,winnerIdx=-1;
+const queue=[];
+const names=()=>ta.value.split("\n").map(s=>s.trim()).filter(Boolean);
+
+function draw(){
+  const n=names(),S=cv.width,R=S/2-12,c=S/2;
+  ctx.clearRect(0,0,S,S);
+  ctx.save();ctx.translate(c,c);
+  ctx.beginPath();ctx.arc(0,0,R+8,0,7);ctx.fillStyle="#fff";ctx.fill();
+  if(!n.length){ctx.restore();return}
+  const s=2*Math.PI/n.length;
+  ctx.rotate(theta);
+  n.forEach((t,i)=>{
+    ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,R,i*s,(i+1)*s);ctx.closePath();
+    ctx.fillStyle=COLORS[i%COLORS.length];ctx.fill();
+    ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.stroke();
+    ctx.save();ctx.rotate(i*s+s/2);ctx.fillStyle="#fff";ctx.textAlign="right";ctx.textBaseline="middle";
+    const fs=Math.max(18,Math.min(48,R*1.2/n.length*1.1));
+    ctx.font="700 "+fs+"px system-ui,sans-serif";
+    let label=t;while(ctx.measureText(label).width>R*0.78&&label.length>3)label=label.slice(0,-2);
+    if(label!==t)label+="…";
+    ctx.shadowColor="rgba(0,0,0,.35)";ctx.shadowBlur=4;
+    ctx.fillText(label,R-26,0);ctx.restore();
+  });
+  ctx.restore();
+  ctx.beginPath();ctx.arc(c,c,34,0,7);ctx.fillStyle="#fff";ctx.fill();
+  ctx.strokeStyle="#ccd";ctx.lineWidth=4;ctx.stroke();
+}
+
+function refreshPick(){
+  const n=names(),prev=pick.value;
+  pick.innerHTML="";
+  n.forEach((t,i)=>{const o=document.createElement("option");o.value=i;o.textContent=t;pick.appendChild(o)});
+  if(prev&&pick.options[prev])pick.value=prev;
+}
+
+function spin(){
+  if(spinning)return;
+  const n=names();if(n.length<2)return;
+  const s=2*Math.PI/n.length;
+  let w=-1;
+  if(force.checked){while(queue.length&&w<0){w=n.indexOf(queue.shift())}}
+  renderQueue();
+  if(w<0)w=Math.floor(Math.random()*n.length);
+  const offset=(w+0.12+0.76*Math.random())*s;
+  const target=-Math.PI/2-offset;
+  const TAU=2*Math.PI;
+  const diff=(((target-theta)%TAU)+TAU)%TAU;
+  const total=diff+TAU*(5+Math.floor(Math.random()*3));
+  const start=theta,dur=5200+Math.random()*1200,t0=performance.now();
+  spinning=true;
+  (function f(now){
+    const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,4);
+    theta=start+total*e;draw();
+    if(p<1)requestAnimationFrame(f);
+    else{spinning=false;winnerIdx=w;document.getElementById("win").textContent=n[w];document.getElementById("modal").classList.add("on")}
+  })(t0);
+}
+
+function renderQueue(){
+  const q=document.getElementById("queue");q.innerHTML="";
+  if(!queue.length){q.textContent="Wachtrij is leeg: de uitslag is willekeurig";return}
+  queue.forEach((nm,i)=>{const d=document.createElement("div");d.className="qi";
+    const sp=document.createElement("span");sp.textContent=(i+1)+". "+nm;
+    const b=document.createElement("button");b.className="ghost";b.textContent="×";b.onclick=()=>{queue.splice(i,1);renderQueue()};
+    d.append(sp,b);q.appendChild(d)});
+}
+document.getElementById("add").onclick=()=>{const v=names()[+pick.value];if(v){queue.push(v);renderQueue()}};
+document.getElementById("clr").onclick=()=>{queue.length=0;renderQueue()};
+ta.addEventListener("input",()=>{refreshPick();draw()});
+document.getElementById("spin").onclick=spin;
+cv.onclick=spin;
+document.getElementById("shuffle").onclick=()=>{const a=names();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}ta.value=a.join("\n");refreshPick();draw()};
+document.getElementById("close").onclick=()=>document.getElementById("modal").classList.remove("on");
+document.getElementById("rm").onclick=()=>{const a=names();a.splice(winnerIdx,1);ta.value=a.join("\n");refreshPick();draw();document.getElementById("modal").classList.remove("on")};
+
+// Geheim paneel: 3x tikken op de titel, toets P, of het bijna onzichtbare puntje rechtsonder
+const sec=document.getElementById("secret");
+const toggle=()=>{sec.classList.toggle("on");pick.dataset.set="1"};
+let taps=0,tt;
+document.getElementById("title").onclick=()=>{taps++;clearTimeout(tt);tt=setTimeout(()=>taps=0,600);if(taps>=3){taps=0;toggle()}};
+document.getElementById("dot").onclick=toggle;
+addEventListener("keydown",e=>{if(e.target.tagName!=="TEXTAREA"&&e.key.toLowerCase()==="p")toggle()});
+
+refreshPick();draw();renderQueue();
+if("serviceWorker" in navigator)addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+</script>
+</body>
+</html>
